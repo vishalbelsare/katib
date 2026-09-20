@@ -1,3 +1,4 @@
+---
 apiVersion: kubeflow.org/v1beta1
 kind: Experiment
 metadata:
@@ -10,13 +11,13 @@ spec:
   objective:
     type: maximize
     goal: 0.99
-    objectiveMetricName: accuracy_1
+    objectiveMetricName: accuracy
   algorithm:
     algorithmName: random
   metricsCollectorSpec:
     source:
       fileSystemPath:
-        path: /train
+        path: /mnist-with-summaries-logs/test
         kind: Directory
     collector:
       kind: TensorFlowEvent
@@ -29,10 +30,13 @@ spec:
     - name: batch_size
       parameterType: int
       feasibleSpace:
-        min: "100"
-        max: "200"
+        min: "32"
+        max: "64"
   trialTemplate:
     primaryContainerName: tensorflow
+    # In this example we can collect metrics only from the Worker pods.
+    primaryPodLabels:
+      training.kubeflow.org/replica-type: worker
     trialParameters:
       - name: learningRate
         description: Learning rate for the training model
@@ -52,10 +56,11 @@ spec:
               spec:
                 containers:
                   - name: tensorflow
-                    image: gcr.io/kubeflow-ci/tf-mnist-with-summaries:1.0
+                    image: ghcr.io/kubeflow/katib/tf-mnist-with-summaries:latest
                     command:
                       - "python"
-                      - "/var/tf_mnist/mnist_with_summaries.py"
-                      - "--log_dir=/train/metrics"
-                      - "--learning_rate=${trialParameters.learningRate}"
-                      - "--batch_size=${trialParameters.batchSize}"
+                      - "/opt/tf-mnist-with-summaries/mnist.py"
+                      - "--epochs=1"
+                      - "--learning-rate=${trialParameters.learningRate}"
+                      - "--batch-size=${trialParameters.batchSize}"
+                      - "--log-path=/mnist-with-summaries-logs"

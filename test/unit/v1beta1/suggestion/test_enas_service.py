@@ -1,4 +1,4 @@
-# Copyright 2021 The Kubeflow Authors.
+# Copyright 2022 The Kubeflow Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import grpc
-import grpc_testing
+import os
+import shutil
 import unittest
 
-from pkg.apis.manager.v1beta1.python import api_pb2
+import grpc
+import grpc_testing
+import pytest
 
+from pkg.apis.manager.v1beta1.python import api_pb2
 from pkg.suggestion.v1beta1.nas.enas.service import EnasService
 
 
 class TestEnas(unittest.TestCase):
     def setUp(self):
-        servicers = {
+        services = {
             api_pb2.DESCRIPTOR.services_by_name['Suggestion']: EnasService(
             )
         }
 
         self.test_server = grpc_testing.server_from_dictionary(
-            servicers, grpc_testing.strict_real_time())
+            services, grpc_testing.strict_real_time())
 
     def test_get_suggestion(self):
         trials = [
@@ -189,6 +192,15 @@ class TestEnas(unittest.TestCase):
         print(response.parameter_assignments)
         self.assertEqual(code, grpc.StatusCode.OK)
         self.assertEqual(2, len(response.parameter_assignments))
+
+
+@pytest.fixture(scope='function', autouse=True)
+def tear_down():
+    yield
+    working_dir = os.getcwd()
+    target_path = os.path.join(working_dir, "ctrl_cache")
+    if os.path.isdir(target_path):
+        shutil.rmtree(target_path)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-# Copyright 2021 The Kubeflow Authors.
+# Copyright 2022 The Kubeflow Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import grpc
-import grpc_testing
 import unittest
 
-from pkg.apis.manager.v1beta1.python import api_pb2
+import grpc
+import grpc_testing
 
+from pkg.apis.manager.v1beta1.python import api_pb2
 from pkg.suggestion.v1beta1.hyperband.service import HyperbandService
 
 

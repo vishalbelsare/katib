@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,12 +15,11 @@ spec:
     metadata:
       labels:
         katib.kubeflow.org/component: ui
-      annotations:
         sidecar.istio.io/inject: "false"
     spec:
       containers:
         - name: katib-ui
-          image: docker.io/kubeflowkatib/katib-ui
+          image: ghcr.io/kubeflow/katib/katib-ui
           command:
             - "./katib-ui"
           args:
@@ -32,4 +32,13 @@ spec:
           ports:
             - name: ui
               containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+              - ALL
       serviceAccountName: katib-ui

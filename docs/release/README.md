@@ -4,7 +4,7 @@ This is the instruction on how to make a new release for the Katib project.
 
 ## Prerequisite
 
-- Tools, defined in the [Developer Guide](./../developer-guide.md#requirements).
+- Tools, defined in the [Contributing Guide](./../../CONTRIBUTING.md#requirements).
 
 - [Write](https://docs.github.com/en/organizations/managing-access-to-your-organizations-repositories/repository-permission-levels-for-an-organization#permission-levels-for-repositories-owned-by-an-organization)
   permission for the Katib repository.
@@ -17,7 +17,19 @@ This is the instruction on how to make a new release for the Katib project.
 
 - Install `PyGithub` to generate the [Changelog](./../../CHANGELOG.md): `pip install PyGithub==1.55`
 
+- Install `build` to publish the Katib models: `pip install build`
+
 - Install `twine` to publish the SDK package: `pip install twine==3.4.1`
+
+  - Create a [PyPI Token](https://pypi.org/help/#apitoken) to publish Katib SDK.
+
+  - Add the following config to your `~/.pypirc` file:
+
+    ```
+    [pypi]
+       username = __token__
+       password = <PYPI_TOKEN>
+    ```
 
 ## Release Process
 
@@ -65,7 +77,10 @@ Follow these steps to cut a new Katib release:
    git clone git@github.com:kubeflow/katib.git $GOPATH/src/github.com/kubeflow/katib
    ```
 
-1. Make sure that you can build all Katib images:
+1. Make sure that you can build all Katib images. **Note** that
+   your Docker Desktop should
+   [enable containerd image store](https://docs.docker.com/desktop/containerd/#enable-the-containerd-image-store)
+   to build multi-arch images:
 
    ```
    make build REGISTRY=private-registry TAG=latest
@@ -87,11 +102,10 @@ Follow these steps to cut a new Katib release:
 
    - Publish Katib Python SDK with the version: `X.Y.Z`.
 
+   - Publish Katib models with the version: `X.Y.Z` for Kubeflow SDK.
+
    - Push above changes to the Katib upstream `release-X.Y` branch with this commit:
      `Katib official release vX.Y.Z`
-
-1. If the new branch was created, submit a PR to allow tests on the `release-X.Y` branch
-   (e.g. [`#965`](https://github.com/kubeflow/testing/pull/965)).
 
 1. Submit a PR to update the SDK version on the `master` branch to the latest release.
    (e.g. [`#1640`](https://github.com/kubeflow/katib/pull/1640)).

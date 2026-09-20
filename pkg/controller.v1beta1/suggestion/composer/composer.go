@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Kubeflow Authors.
+Copyright 2022 The Kubeflow Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
+	configv1beta1 "github.com/kubeflow/katib/pkg/apis/config/v1beta1"
 	experimentsv1beta1 "github.com/kubeflow/katib/pkg/apis/controller/experiments/v1beta1"
 	suggestionsv1beta1 "github.com/kubeflow/katib/pkg/apis/controller/suggestions/v1beta1"
 	trialsv1beta1 "github.com/kubeflow/katib/pkg/apis/controller/trials/v1beta1"
@@ -43,8 +44,6 @@ const (
 	defaultPeriodForReady      = 10
 	defaultPeriodForLive       = 120
 	defaultFailureThreshold    = 12
-	// Ref https://github.com/grpc-ecosystem/grpc-health-probe/
-	defaultGRPCHealthCheckProbe = "/bin/grpc_health_probe"
 )
 
 var (
@@ -76,9 +75,14 @@ func (g *General) DesiredDeployment(s *suggestionsv1beta1.Suggestion) (*appsv1.D
 	if err != nil {
 		return nil, err
 	}
+	if containsContainerPortWithName(suggestionConfigData.Ports, consts.DefaultSuggestionPortName) ||
+		containsContainerPort(suggestionConfigData.Ports, consts.DefaultSuggestionPort) {
+		return nil, fmt.Errorf("invalid suggestion config: a port with name %q or number %d must not be specified",
+			consts.DefaultSuggestionPortName, consts.DefaultSuggestionPort)
+	}
 
 	// If early stopping is used, get the config data.
-	earlyStoppingConfigData := katibconfig.EarlyStoppingConfig{}
+	earlyStoppingConfigData := configv1beta1.EarlyStoppingConfig{}
 	if s.Spec.EarlyStopping != nil && s.Spec.EarlyStopping.AlgorithmName != "" {
 		earlyStoppingConfigData, err = katibconfig.GetEarlyStoppingConfigData(s.Spec.EarlyStopping.AlgorithmName, g.Client)
 		if err != nil {
@@ -100,7 +104,7 @@ func (g *General) DesiredDeployment(s *suggestionsv1beta1.Suggestion) (*appsv1.D
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      util.SuggestionLabels(s),
-					Annotations: util.SuggestionAnnotations(s),
+					Annotations: s.Annotations,
 				},
 				Spec: corev1.PodSpec{
 					Containers: g.desiredContainers(s, suggestionConfigData, earlyStoppingConfigData),
@@ -178,45 +182,47 @@ func (g *General) DesiredService(s *suggestionsv1beta1.Suggestion) (*corev1.Serv
 }
 
 func (g *General) desiredContainers(s *suggestionsv1beta1.Suggestion,
-	suggestionConfigData katibconfig.SuggestionConfig,
-	earlyStoppingConfigData katibconfig.EarlyStoppingConfig) []corev1.Container {
+	suggestionConfigData configv1beta1.SuggestionConfig,
+	earlyStoppingConfigData configv1beta1.EarlyStoppingConfig) []corev1.Container {
 
-	containers := []corev1.Container{}
-	suggestionContainer := corev1.Container{
-		Name:            consts.ContainerSuggestion,
-		Image:           suggestionConfigData.Image,
-		ImagePullPolicy: suggestionConfigData.ImagePullPolicy,
-		Ports: []corev1.ContainerPort{
-			{
-				Name:          consts.DefaultSuggestionPortName,
-				ContainerPort: consts.DefaultSuggestionPort,
-			},
-		},
-		Resources: suggestionConfigData.Resource,
+	var (
+		containers          []corev1.Container
+		suggestionContainer corev1.Container
+	)
+
+	suggestionConfigData.Container.DeepCopyInto(&suggestionContainer)
+
+	// Assign default values for suggestionContainer fields that are not set via
+	// the suggestion config.
+
+	if suggestionContainer.Name == "" {
+		suggestionContainer.Name = consts.ContainerSuggestion
 	}
 
-	if viper.GetBool(consts.ConfigEnableGRPCProbeInSuggestion) {
+	suggestionPort := corev1.ContainerPort{
+		Name:          consts.DefaultSuggestionPortName,
+		ContainerPort: consts.DefaultSuggestionPort,
+	}
+	suggestionContainer.Ports = append(suggestionContainer.Ports, suggestionPort)
+
+	if viper.GetBool(consts.ConfigEnableGRPCProbeInSuggestion) && suggestionContainer.ReadinessProbe == nil {
 		suggestionContainer.ReadinessProbe = &corev1.Probe{
-			Handler: corev1.Handler{
-				Exec: &corev1.ExecAction{
-					Command: []string{
-						defaultGRPCHealthCheckProbe,
-						fmt.Sprintf("-addr=:%d", consts.DefaultSuggestionPort),
-						fmt.Sprintf("-service=%s", consts.DefaultGRPCService),
-					},
+			ProbeHandler: corev1.ProbeHandler{
+				GRPC: &corev1.GRPCAction{
+					Port:    consts.DefaultSuggestionPort,
+					Service: &consts.DefaultGRPCService,
 				},
 			},
 			InitialDelaySeconds: defaultInitialDelaySeconds,
 			PeriodSeconds:       defaultPeriodForReady,
 		}
+	}
+	if viper.GetBool(consts.ConfigEnableGRPCProbeInSuggestion) && suggestionContainer.LivenessProbe == nil {
 		suggestionContainer.LivenessProbe = &corev1.Probe{
-			Handler: corev1.Handler{
-				Exec: &corev1.ExecAction{
-					Command: []string{
-						defaultGRPCHealthCheckProbe,
-						fmt.Sprintf("-addr=:%d", consts.DefaultSuggestionPort),
-						fmt.Sprintf("-service=%s", consts.DefaultGRPCService),
-					},
+			ProbeHandler: corev1.ProbeHandler{
+				GRPC: &corev1.GRPCAction{
+					Port:    consts.DefaultSuggestionPort,
+					Service: &consts.DefaultGRPCService,
 				},
 			},
 			// Ref https://srcco.de/posts/kubernetes-liveness-probes-are-dangerous.html
@@ -226,15 +232,14 @@ func (g *General) desiredContainers(s *suggestionsv1beta1.Suggestion,
 		}
 	}
 
-	// Attach volume mounts to the suggestion container if ResumePolicy = FromVolume
-	if s.Spec.ResumePolicy == experimentsv1beta1.FromVolume {
-		suggestionContainer.VolumeMounts = []corev1.VolumeMount{
-			{
-				Name:      consts.ContainerSuggestionVolumeName,
-				MountPath: suggestionConfigData.VolumeMountPath,
-			},
+	if s.Spec.ResumePolicy == experimentsv1beta1.FromVolume && !containsVolumeMountWithName(suggestionContainer.VolumeMounts, consts.ContainerSuggestionVolumeName) {
+		suggestionVolume := corev1.VolumeMount{
+			Name:      consts.ContainerSuggestionVolumeName,
+			MountPath: suggestionConfigData.VolumeMountPath,
 		}
+		suggestionContainer.VolumeMounts = append(suggestionContainer.VolumeMounts, suggestionVolume)
 	}
+
 	containers = append(containers, suggestionContainer)
 
 	if s.Spec.EarlyStopping != nil && s.Spec.EarlyStopping.AlgorithmName != "" {
@@ -248,11 +253,42 @@ func (g *General) desiredContainers(s *suggestionsv1beta1.Suggestion,
 					ContainerPort: consts.DefaultEarlyStoppingPort,
 				},
 			},
+			Resources: earlyStoppingConfigData.Resource,
 		}
 
 		containers = append(containers, earlyStoppingContainer)
 	}
 	return containers
+}
+
+func containsVolumeMountWithName(volumeMounts []corev1.VolumeMount, name string) bool {
+	for i := range volumeMounts {
+		if volumeMounts[i].Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsContainerPortWithName(ports []corev1.ContainerPort, name string) bool {
+	for i := range ports {
+		if ports[i].Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsContainerPort(ports []corev1.ContainerPort, port int32) bool {
+	for i := range ports {
+		if ports[i].ContainerPort == port {
+			return true
+		}
+	}
+
+	return false
 }
 
 // DesiredVolume returns desired PVC and PV for Suggestion.

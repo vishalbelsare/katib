@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Kubeflow Authors.
+Copyright 2022 The Kubeflow Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import (
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -90,7 +91,7 @@ func (g *General) SyncAssignments(
 	}
 
 	endpoint := util.GetAlgorithmEndpoint(instance)
-	connSuggestion, err := grpc.Dial(endpoint, grpc.WithInsecure())
+	connSuggestion, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
@@ -108,10 +109,8 @@ func (g *General) SyncAssignments(
 		instance.Status.AlgorithmSettings)
 
 	requestSuggestion := &suggestionapi.GetSuggestionsRequest{
-		Experiment: g.ConvertExperiment(filledE),
-		Trials:     g.ConvertTrials(ts),
-		// TODO (andreyvelich): Remove this once RequestNumber is deprecated.
-		RequestNumber:        int32(currentRequestNum),
+		Experiment:           g.ConvertExperiment(filledE),
+		Trials:               g.ConvertTrials(ts),
 		CurrentRequestNumber: int32(currentRequestNum),
 		TotalRequestNumber:   int32(instance.Spec.Requests),
 	}
@@ -132,7 +131,7 @@ func (g *General) SyncAssignments(
 	// If early stopping is set, call GetEarlyStoppingRules after GetSuggestions.
 	if instance.Spec.EarlyStopping != nil {
 		endpoint = util.GetEarlyStoppingEndpoint(instance)
-		connEarlyStopping, err := grpc.Dial(endpoint, grpc.WithInsecure())
+		connEarlyStopping, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return err
 		}
@@ -169,14 +168,27 @@ func (g *General) SyncAssignments(
 		}
 	}
 
+	trialAssignments := []suggestionsv1beta1.TrialAssignment{}
 	for _, t := range responseSuggestion.ParameterAssignments {
-		instance.Status.Suggestions = append(instance.Status.Suggestions,
-			suggestionsv1beta1.TrialAssignment{
-				Name:                 fmt.Sprintf("%s-%s", instance.Name, utilrand.String(8)),
-				ParameterAssignments: composeParameterAssignments(t.Assignments),
-				EarlyStoppingRules:   earlyStoppingRules,
-			})
+		var trialName string
+		if t.TrialName != "" {
+			trialName = t.TrialName
+		} else {
+			trialName = fmt.Sprintf("%s-%s", instance.Name, utilrand.String(8))
+		}
+
+		assignment := suggestionsv1beta1.TrialAssignment{
+			Name:                 trialName,
+			ParameterAssignments: composeParameterAssignments(t.Assignments),
+			EarlyStoppingRules:   earlyStoppingRules,
+		}
+		if t.Labels != nil {
+			assignment.Labels = t.Labels
+		}
+		trialAssignments = append(trialAssignments, assignment)
 	}
+
+	instance.Status.Suggestions = append(instance.Status.Suggestions, trialAssignments...)
 	instance.Status.SuggestionCount = int32(len(instance.Status.Suggestions))
 
 	if responseSuggestion.Algorithm != nil {
@@ -190,7 +202,7 @@ func (g *General) ValidateAlgorithmSettings(instance *suggestionsv1beta1.Suggest
 	logger := log.WithValues("Suggestion", types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()})
 	endpoint := util.GetAlgorithmEndpoint(instance)
 
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure(),
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(callValidatorOpts...)),
 		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(callValidatorOpts...)),
 	)
@@ -238,7 +250,7 @@ func (g *General) ValidateEarlyStoppingSettings(instance *suggestionsv1beta1.Sug
 	logger := log.WithValues("EarlyStopping", types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()})
 	endpoint := util.GetEarlyStoppingEndpoint(instance)
 
-	conn, err := grpc.Dial(endpoint, grpc.WithInsecure(),
+	conn, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(callValidatorOpts...)),
 		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(callValidatorOpts...)),
 	)
@@ -331,6 +343,9 @@ func (g *General) ConvertTrials(ts []trialsv1beta1.Trial) []*suggestionapi.Trial
 		if t.IsMetricsUnavailable() {
 			continue
 		}
+		if !t.IsObservationAvailable() && t.IsEarlyStopped() {
+			continue
+		}
 		trial := &suggestionapi.Trial{
 			Name: t.Name,
 			Spec: &suggestionapi.TrialSpec{
@@ -347,6 +362,9 @@ func (g *General) ConvertTrials(ts []trialsv1beta1.Trial) []*suggestionapi.Trial
 				CompletionTime: convertTrialStatusTime(t.Status.CompletionTime),
 				Observation:    convertTrialObservation(t.Spec.Objective.MetricStrategies, t.Status.Observation),
 			},
+		}
+		if t.Spec.Labels != nil {
+			trial.Spec.Labels = t.Spec.Labels
 		}
 		if t.Spec.Objective.Goal != nil {
 			trial.Spec.Objective.Goal = *t.Spec.Objective.Goal
@@ -514,13 +532,28 @@ func convertParameterType(typ experimentsv1beta1.ParameterType) suggestionapi.Pa
 }
 
 func convertFeasibleSpace(fs experimentsv1beta1.FeasibleSpace) *suggestionapi.FeasibleSpace {
-	res := &suggestionapi.FeasibleSpace{
-		Max:  fs.Max,
-		Min:  fs.Min,
-		List: fs.List,
-		Step: fs.Step,
+	return &suggestionapi.FeasibleSpace{
+		Max:          fs.Max,
+		Min:          fs.Min,
+		List:         fs.List,
+		Step:         fs.Step,
+		Distribution: convertDistribution(fs.Distribution),
 	}
-	return res
+}
+
+func convertDistribution(typ experimentsv1beta1.Distribution) suggestionapi.Distribution {
+	switch typ {
+	case experimentsv1beta1.DistributionUniform:
+		return suggestionapi.Distribution_UNIFORM
+	case experimentsv1beta1.DistributionLogUniform:
+		return suggestionapi.Distribution_LOG_UNIFORM
+	case experimentsv1beta1.DistributionNormal:
+		return suggestionapi.Distribution_NORMAL
+	case experimentsv1beta1.DistributionLogNormal:
+		return suggestionapi.Distribution_LOG_NORMAL
+	default:
+		return suggestionapi.Distribution_DISTRIBUTION_UNSPECIFIED
+	}
 }
 
 func convertComparison(comparison suggestionapi.ComparisonType) commonapiv1beta1.ComparisonType {

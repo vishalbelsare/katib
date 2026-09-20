@@ -44,6 +44,8 @@ Experiments for the following algorithms:
 
 - [HyperBand](./hp-tuning/hyperband.yaml)
 
+- [PBT](./hp-tuning/simple-pbt.yaml)
+
 ### Neural Architecture Search
 
 Check the [Neural Architecture Search](https://www.kubeflow.org/docs/components/katib/overview/#neural-architecture-search)
@@ -72,7 +74,7 @@ to know more about it. Check the following examples:
 
 - [Resume From Volume](./resume-experiment/from-volume-resume.yaml)
 
-- [Never Resume](./resume-experiment/never-resume.yaml)
+- [Resume Long Running Experiment](./resume-experiment/long-running-resume.yaml)
 
 ## Metrics Collector
 
@@ -100,13 +102,15 @@ Check the following examples:
 
 Check the following images for the Trial containers:
 
-- [MXNet MNIST](./trial-images/mxnet-mnist)
+- [Tensorflow MNIST with summaries](./trial-images/tf-mnist-with-summaries)
 
 - [PyTorch MNIST](./trial-images/pytorch-mnist)
 
 - [ENAS Keras CNN CIFAR-10](./trial-images/enas-cnn-cifar10)
 
 - [DARTS PyTorch CNN CIFAR-10](./trial-images/darts-cnn-cifar10)
+
+- [PBT proof of concept](./trial-images/simple-pbt)
 
 ## Katib with Kubeflow Training Operator
 
@@ -117,8 +121,6 @@ Check the following examples for the various distributed operators:
 - [TFJob MNIST with summaries](./kubeflow-training-operator/tfjob-mnist-with-summaries.yaml)
 
 - [PyTorchJob MNIST](./kubeflow-training-operator/pytorchjob-mnist.yaml)
-
-- [MXJob BytePS](./kubeflow-training-operator/mxjob-byteps.yaml)
 
 - [XGBoostJob LightGBM](./kubeflow-training-operator/xgboostjob-lightgbm.yaml)
 

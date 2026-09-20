@@ -10,15 +10,14 @@ You can find the Katib Component source code for the Kubeflow Pipelines
 
 You have to install the following Python SDK to run these examples:
 
-- [`kfp`](https://pypi.org/project/kfp/) >= 1.8.4
-- [`kubeflow-katib`](https://pypi.org/project/kubeflow-katib/) >= 0.12.0
+- [`kfp`](https://pypi.org/project/kfp/) >= 1.8.12
+- [`kubeflow-katib`](https://pypi.org/project/kubeflow-katib/) >= 0.13.0
 
 ## Multi-User Pipelines Setup
 
-The Notebooks examples run Pipelines in multi-user mode and your Kubeflow Notebook
-must have the appropriate `PodDefault` with the `pipelines.kubeflow.org` audience.
+The Notebooks examples run Pipelines in multi-user mode and your Kubeflow Notebook must authenticate the Pipeline SDK.
 
-Please follow [this guide](https://www.kubeflow.org/docs/components/pipelines/sdk/connect-api/#multi-user-mode)
+Please follow [this guide](https://www.kubeflow.org/docs/components/pipelines/user-guides/core-functions/connect-api/)
 to give an access Kubeflow Notebook to run Kubeflow Pipelines.
 
 ## List of Examples

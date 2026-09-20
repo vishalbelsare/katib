@@ -1,3 +1,17 @@
+# Copyright 2022 The Kubeflow Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Kubeflow Pipeline with Katib component.
 
 # In this example you will create Katib Experiment using Bayesian optimization algorithm.
@@ -5,36 +19,39 @@
 # After that, you will compile a Kubeflow Pipeline with your Katib Experiment.
 # Use Kubeflow Pipelines UI to upload the Pipeline and create the Experiment and Run.
 
-# This Experiment is similar to this: https://github.com/kubeflow/katib/blob/master/examples/v1beta1/kubeflow-training-operator/mpijob-horovod.yaml
-# Check the training container source code here: https://github.com/kubeflow/mpi-operator/tree/master/examples/horovod.
+# This Experiment is similar to this:
+# https://github.com/kubeflow/katib/blob/master/examples/v1beta1/kubeflow-training-operator/mpijob-horovod.yaml
+# Check the training container source code here:
+# https://github.com/kubeflow/mpi-operator/tree/master/examples/horovod.
 
 # Note: To run this example, your Kubernetes cluster should run MPIJob operator.
-# Follow this guide to install MPIJob on your cluster: https://www.kubeflow.org/docs/components/training/mpi/
+# Follow this guide to install MPIJob on your cluster:
+# https://www.kubeflow.org/docs/components/training/mpi/
 
 import kfp
 import kfp.dsl as dsl
 from kfp import components
-
-from kubeflow.katib import ApiClient
-from kubeflow.katib import V1beta1ExperimentSpec
-from kubeflow.katib import V1beta1AlgorithmSpec
-from kubeflow.katib import V1beta1AlgorithmSetting
-from kubeflow.katib import V1beta1ObjectiveSpec
-from kubeflow.katib import V1beta1ParameterSpec
-from kubeflow.katib import V1beta1FeasibleSpace
-from kubeflow.katib import V1beta1TrialTemplate
-from kubeflow.katib import V1beta1TrialParameterSpec
+from kubeflow.katib import (
+    ApiClient,
+    V1beta1AlgorithmSetting,
+    V1beta1AlgorithmSpec,
+    V1beta1ExperimentSpec,
+    V1beta1FeasibleSpace,
+    V1beta1ObjectiveSpec,
+    V1beta1ParameterSpec,
+    V1beta1TrialParameterSpec,
+    V1beta1TrialTemplate,
+)
 
 
 @dsl.pipeline(
     name="Launch Katib MPIJob Experiment",
-    description="An example to launch Katib Experiment with MPIJob"
+    description="An example to launch Katib Experiment with MPIJob",
 )
 def horovod_mnist_hpo(
     experiment_name: str = "mpi-horovod-mnist",
     experiment_namespace: str = "kubeflow-user-example-com",
 ):
-
     # Trial count specification.
     max_trial_count = 6
     max_failed_trial_count = 3
@@ -50,12 +67,7 @@ def horovod_mnist_hpo(
     # Algorithm specification.
     algorithm = V1beta1AlgorithmSpec(
         algorithm_name="bayesianoptimization",
-        algorithm_settings=[
-            V1beta1AlgorithmSetting(
-                name="random_state",
-                value="10"
-            )
-        ]
+        algorithm_settings=[V1beta1AlgorithmSetting(name="random_state", value="10")],
     )
 
     # Experiment search space.
@@ -64,19 +76,12 @@ def horovod_mnist_hpo(
         V1beta1ParameterSpec(
             name="lr",
             parameter_type="double",
-            feasible_space=V1beta1FeasibleSpace(
-                min="0.001",
-                max="0.003"
-            ),
+            feasible_space=V1beta1FeasibleSpace(min="0.001", max="0.003"),
         ),
         V1beta1ParameterSpec(
             name="num-steps",
             parameter_type="int",
-            feasible_space=V1beta1FeasibleSpace(
-                min="50",
-                max="150",
-                step="10"
-            ),
+            feasible_space=V1beta1FeasibleSpace(min="50", max="150", step="10"),
         ),
     ]
 
@@ -91,19 +96,13 @@ def horovod_mnist_hpo(
                 "Launcher": {
                     "replicas": 1,
                     "template": {
-                        "metadata": {
-                            "annotations": {
-                                "sidecar.istio.io/inject": "false"
-                            }
-                        },
+                        "metadata": {"labels": {"sidecar.istio.io/inject": "false"}},
                         "spec": {
                             "containers": [
                                 {
                                     "image": "docker.io/kubeflow/mpi-horovod-mnist",
                                     "name": "mpi-launcher",
-                                    "command": [
-                                        "mpirun"
-                                    ],
+                                    "command": ["mpirun"],
                                     "args": [
                                         "-np",
                                         "2",
@@ -127,52 +126,40 @@ def horovod_mnist_hpo(
                                         "--lr",
                                         "${trialParameters.learningRate}",
                                         "--num-steps",
-                                        "${trialParameters.numberSteps}"
+                                        "${trialParameters.numberSteps}",
                                     ],
                                     "resources": {
-                                        "limits": {
-                                            "cpu": "500m",
-                                            "memory": "2Gi"
-                                        }
-                                    }
+                                        "limits": {"cpu": "500m", "memory": "2Gi"}
+                                    },
                                 }
                             ]
-                        }
-                    }
+                        },
+                    },
                 },
                 "Worker": {
                     "replicas": 2,
                     "template": {
-                        "metadata": {
-                            "annotations": {
-                                "sidecar.istio.io/inject": "false"
-                            }
-                        },
+                        "metadata": {"labels": {"sidecar.istio.io/inject": "false"}},
                         "spec": {
                             "containers": [
                                 {
                                     "image": "docker.io/kubeflow/mpi-horovod-mnist",
                                     "name": "mpi-worker",
                                     "resources": {
-                                        "limits": {
-                                            "cpu": "500m",
-                                            "memory": "4Gi"
-                                        }
-                                    }
+                                        "limits": {"cpu": "500m", "memory": "4Gi"}
+                                    },
                                 }
                             ]
-                        }
-                    }
-                }
-            }
-        }
+                        },
+                    },
+                },
+            },
+        },
     }
 
     # Configure parameters for the Trial template.
     trial_template = V1beta1TrialTemplate(
-        primary_pod_labels={
-            "mpi-job-role": "launcher"
-        },
+        primary_pod_labels={"mpi-job-role": "launcher"},
         primary_container_name="mpi-launcher",
         success_condition='status.conditions.#(type=="Succeeded")#|#(status=="True")#',
         failure_condition='status.conditions.#(type=="Failed")#|#(status=="True")#',
@@ -180,15 +167,15 @@ def horovod_mnist_hpo(
             V1beta1TrialParameterSpec(
                 name="learningRate",
                 description="Learning rate for the training model",
-                reference="lr"
+                reference="lr",
             ),
             V1beta1TrialParameterSpec(
                 name="numberSteps",
                 description="Number of training steps",
-                reference="num-steps"
+                reference="num-steps",
             ),
         ],
-        trial_spec=trial_spec
+        trial_spec=trial_spec,
     )
 
     # Create Experiment specification.
@@ -199,13 +186,15 @@ def horovod_mnist_hpo(
         objective=objective,
         algorithm=algorithm,
         parameters=parameters,
-        trial_template=trial_template
+        trial_template=trial_template,
     )
 
     # Get the Katib launcher.
     # Load component from the URL or from the file.
     katib_experiment_launcher_op = components.load_component_from_url(
-        "https://raw.githubusercontent.com/kubeflow/pipelines/master/components/kubeflow/katib-launcher/component.yaml")
+        "https://raw.githubusercontent.com/kubeflow/pipelines/master/"
+        "components/kubeflow/katib-launcher/component.yaml"
+    )
     # katib_experiment_launcher_op = components.load_component_from_file(
     #     "../../../components/kubeflow/katib-launcher/component.yaml"
     # )
@@ -217,7 +206,8 @@ def horovod_mnist_hpo(
         experiment_name=experiment_name,
         experiment_namespace=experiment_namespace,
         experiment_spec=ApiClient().sanitize_for_serialization(experiment_spec),
-        experiment_timeout_minutes=60)
+        experiment_timeout_minutes=60,
+    )
 
     # Output container to print the results.
     dsl.ContainerOp(

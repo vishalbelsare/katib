@@ -1,3 +1,4 @@
+---
 # This GPU example aims to show all the possible operations
 # is not very likely to get good result due to the extensive search space
 
@@ -135,7 +136,7 @@ spec:
           spec:
             containers:
               - name: training-container
-                image: docker.io/kubeflowkatib/enas-cnn-cifar10-gpu:v1beta1-45c5727
+                image: ghcr.io/kubeflow/katib/enas-cnn-cifar10-gpu:latest
                 command:
                   - python3
                   - -u

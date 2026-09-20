@@ -9,8 +9,8 @@ require any public or private cloud to run Katib Experiments.
 Install the following tools to run the example:
 
 - [Docker](https://docs.docker.com/get-docker) >= 20.10
-- [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) >= 0.11
-- [`kubectl`](https://kubernetes.io/docs/tasks/tools/#kubectl) >= 1.21
+- [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) >= 0.13
+- [`kubectl`](https://kubernetes.io/docs/tasks/tools/#kubectl) >= 1.29
 
 ## Installation
 
@@ -27,7 +27,6 @@ If the above script was successful, Katib components will be running:
 $ kubectl get pods -n kubeflow
 
 NAME                                READY   STATUS      RESTARTS   AGE
-katib-cert-generator-tc2jt          0/1     Completed   0          67s
 katib-controller-566595bdd8-x7z6w   1/1     Running     0          67s
 katib-db-manager-57cd769cdb-x4lnz   1/1     Running     0          67s
 katib-mysql-7894994f88-7l8nd        1/1     Running     0          67s
@@ -47,14 +46,13 @@ using `kubectl`:
 kubectl create -f https://raw.githubusercontent.com/kubeflow/katib/master/examples/v1beta1/hp-tuning/random.yaml
 ```
 
-This example uses a MXNet neural network to train an image classification model
+This example uses a PyTorch neural network to train an image classification model
 using the MNIST dataset. You can check the training container source code
-[here](../trial-images/mxnet-mnist).
+[here](../trial-images/pytorch-mnist).
 The Experiment runs twelve training jobs (Trials) and tunes the following hyperparameters:
 
 - Learning Rate (`lr`).
-- Number of layers (`num-layers`).
-- Neural network optimizer (`optimizer`).
+- Momentum (`momentum`).
 
 After creating above example, check the
 [Experiment](https://www.kubeflow.org/docs/components/katib/overview/#experiment) status:
@@ -93,8 +91,7 @@ You can get the best hyperparameters with the following command:
 $ kubectl get experiment random -n kubeflow -o jsonpath='{range .status.currentOptimalTrial.parameterAssignments[*]}{.name}: {.value}{"\n"}{end}'
 
 lr: 0.028162244250364066
-num-layers: 5
-optimizer: sgd
+momentum: 0.583672196492823
 ```
 
 To view created Experiment in Katib UI, follow

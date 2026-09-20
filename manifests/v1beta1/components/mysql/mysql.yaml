@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,12 +17,14 @@ spec:
     metadata:
       labels:
         katib.kubeflow.org/component: mysql
-      annotations:
         sidecar.istio.io/inject: "false"
     spec:
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: katib-mysql
-          image: mysql:8.0.26
+          image: mysql:8.0
           args:
             - --datadir
             - /var/lib/mysql/datadir
@@ -43,28 +46,32 @@ spec:
               command:
                 - "/bin/bash"
                 - "-c"
-                - "mysql -D ${MYSQL_DATABASE} -u root -p${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
-            periodSeconds: 2
+                - "mysql -h 127.0.0.1 -D ${MYSQL_DATABASE} -u root -p${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
+            initialDelaySeconds: 10
+            periodSeconds: 5
             failureThreshold: 10
           livenessProbe:
             exec:
               command:
-                - "/bin/bash"
-                - "-c"
-                - "mysqladmin ping -u root -p${MYSQL_ROOT_PASSWORD}"
-            periodSeconds: 2
+              - "/bin/bash"
+              - "-c"
+              - "mysql -h 127.0.0.1 -D ${MYSQL_DATABASE} -u root -p${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
+            initialDelaySeconds: 10
+            periodSeconds: 5
             failureThreshold: 10
-          startupProbe:
-            exec:
-              command:
-                - "/bin/bash"
-                - "-c"
-                - "mysqladmin ping -u root -p${MYSQL_ROOT_PASSWORD}"
-            periodSeconds: 15
-            failureThreshold: 60
           volumeMounts:
             - name: katib-mysql
               mountPath: /var/lib/mysql
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            capabilities:
+              drop:
+              - ALL
       volumes:
         - name: katib-mysql
           persistentVolumeClaim:

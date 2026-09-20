@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Kubeflow Authors.
+Copyright 2022 The Kubeflow Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,10 +29,14 @@ type TrialSpec struct {
 	Objective *common.ObjectiveSpec `json:"objective,omitempty"`
 
 	// Key-value pairs for hyperparameters and assignment values.
+	// +listType=map
+	// +listMapKey=name
 	ParameterAssignments []common.ParameterAssignment `json:"parameterAssignments,omitempty"`
 
 	// Rules for early stopping techniques.
 	// Each rule should be met to early stop Trial.
+	// +listType=map
+	// +listMapKey=name
 	EarlyStoppingRules []common.EarlyStoppingRule `json:"earlyStoppingRules,omitempty"`
 
 	// Raw text for the trial run spec. This can be any generic Kubernetes
@@ -61,6 +65,9 @@ type TrialSpec struct {
 	// Condition must be in GJSON format, ref https://github.com/tidwall/gjson.
 	// For example for BatchJob: status.conditions.#(type=="Failed")#|#(status=="True")#
 	FailureCondition string `json:"failureCondition,omitempty"`
+
+	// Labels that provide additional metadata for services (e.g. Suggestions tracking)
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // TrialStatus is the current status of a Trial.
@@ -81,6 +88,8 @@ type TrialStatus struct {
 	LastReconcileTime *metav1.Time `json:"lastReconcileTime,omitempty"`
 
 	// List of observed runtime conditions for this Trial.
+	// +listType=map
+	// +listMapKey=type
 	Conditions []TrialCondition `json:"conditions,omitempty"`
 
 	// Results of the Trial - objectives and other metrics values.
@@ -113,12 +122,13 @@ type TrialCondition struct {
 type TrialConditionType string
 
 const (
-	TrialCreated      TrialConditionType = "Created"
-	TrialRunning      TrialConditionType = "Running"
-	TrialSucceeded    TrialConditionType = "Succeeded"
-	TrialKilled       TrialConditionType = "Killed"
-	TrialFailed       TrialConditionType = "Failed"
-	TrialEarlyStopped TrialConditionType = "EarlyStopped"
+	TrialCreated            TrialConditionType = "Created"
+	TrialRunning            TrialConditionType = "Running"
+	TrialSucceeded          TrialConditionType = "Succeeded"
+	TrialKilled             TrialConditionType = "Killed"
+	TrialFailed             TrialConditionType = "Failed"
+	TrialMetricsUnavailable TrialConditionType = "MetricsUnavailable"
+	TrialEarlyStopped       TrialConditionType = "EarlyStopped"
 )
 
 // +genclient

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The Kubeflow Authors.
+Copyright 2022 The Kubeflow Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,25 +17,27 @@ limitations under the License.
 package experiment
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/mock/gomock"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	commonapiv1beta1 "github.com/kubeflow/katib/pkg/apis/controller/common/v1beta1"
 	experimentsv1beta1 "github.com/kubeflow/katib/pkg/apis/controller/experiments/v1beta1"
@@ -43,7 +45,7 @@ import (
 	trialsv1beta1 "github.com/kubeflow/katib/pkg/apis/controller/trials/v1beta1"
 	"github.com/kubeflow/katib/pkg/controller.v1beta1/consts"
 	experimentUtil "github.com/kubeflow/katib/pkg/controller.v1beta1/experiment/util"
-	util "github.com/kubeflow/katib/pkg/controller.v1beta1/util"
+	"github.com/kubeflow/katib/pkg/controller.v1beta1/util"
 	manifestmock "github.com/kubeflow/katib/pkg/mock/v1beta1/experiment/manifest"
 	suggestionmock "github.com/kubeflow/katib/pkg/mock/v1beta1/experiment/suggestion"
 )
@@ -89,11 +91,72 @@ func (statusM statusMatcher) String() string {
 
 func TestAdd(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{
+		Metrics:    metricsserver.Options{BindAddress: "0"},
+		Controller: config.Controller{SkipNameValidation: ptr.To(true)},
+	})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 
 	// Test - Try to add experiment controller to the manager
 	g.Expect(Add(mgr)).NotTo(gomega.HaveOccurred())
+}
+
+func TestReconcileSuggestions(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockSuggestion := suggestionmock.NewMockSuggestion(mockCtrl)
+
+	mockCtrl2 := gomock.NewController(t)
+	defer mockCtrl2.Finish()
+	mockGenerator := manifestmock.NewMockGenerator(mockCtrl2)
+
+	// Setup the Manager and Controller. Wrap the Controller Reconcile function so it writes each request to a
+	// channel when it is finished.
+	mgr, err := manager.New(cfg, manager.Options{Metrics: metricsserver.Options{BindAddress: "0"}})
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+
+	r := &ReconcileExperiment{
+		Client:     mgr.GetClient(),
+		scheme:     mgr.GetScheme(),
+		Suggestion: mockSuggestion,
+		Generator:  mockGenerator,
+		collector:  experimentUtil.NewExpsCollector(mgr.GetCache(), prometheus.NewRegistry()),
+		recorder:   mgr.GetEventRecorderFor(ControllerName),
+	}
+
+	suggestionRestartNo := newFakeSuggestion()
+	mockSuggestion.EXPECT().GetOrCreateSuggestion(gomock.Any(), gomock.Any()).Return(
+		suggestionRestartNo, nil).AnyTimes()
+	mockSuggestion.EXPECT().UpdateSuggestion(gomock.Any()).Return(nil).AnyTimes()
+
+	instance := newFakeInstance()
+
+	// ReconcileSuggestions should return the missing trial assignments
+	assignments, err := r.ReconcileSuggestions(
+		instance,
+		[]trialsv1beta1.Trial{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      trialName + "-1",
+					Namespace: namespace,
+				},
+				Spec: trialsv1beta1.TrialSpec{},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      trialName + "-3",
+					Namespace: namespace,
+				},
+				Spec: trialsv1beta1.TrialSpec{},
+			},
+		},
+		1,
+	)
+	g.Expect(err).NotTo(gomega.HaveOccurred())
+	g.Expect(len(assignments)).To(gomega.Equal(1))
+	g.Expect(assignments[0].Name).To(gomega.Equal(trialName + "-2"))
 }
 
 func TestReconcile(t *testing.T) {
@@ -105,11 +168,11 @@ func TestReconcile(t *testing.T) {
 
 	mockCtrl2 := gomock.NewController(t)
 	defer mockCtrl2.Finish()
-	mockGenerator := manifestmock.NewMockGenerator(mockCtrl)
+	mockGenerator := manifestmock.NewMockGenerator(mockCtrl2)
 
 	// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
 	// channel when it is finished.
-	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+	mgr, err := manager.New(cfg, manager.Options{Metrics: metricsserver.Options{BindAddress: "0"}})
 	g.Expect(err).NotTo(gomega.HaveOccurred())
 	c := mgr.GetClient()
 
@@ -126,7 +189,7 @@ func TestReconcile(t *testing.T) {
 		// Try to update status until it be succeeded
 		for err != nil {
 			updatedInstance := &experimentsv1beta1.Experiment{}
-			if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, updatedInstance); err != nil {
+			if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, updatedInstance); err != nil {
 				continue
 			}
 			updatedInstance.Status = instance.Status
@@ -143,7 +206,7 @@ func TestReconcile(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		g.Expect(mgr.Start(context.TODO())).NotTo(gomega.HaveOccurred())
+		g.Expect(mgr.Start(ctx)).NotTo(gomega.HaveOccurred())
 	}()
 
 	returnedBatchJob := newFakeBatchJob()
@@ -159,7 +222,6 @@ func TestReconcile(t *testing.T) {
 		nil).AnyTimes()
 
 	suggestionRestartNo := newFakeSuggestion()
-
 	mockSuggestion.EXPECT().GetOrCreateSuggestion(gomock.Any(), gomock.Any()).Return(
 		suggestionRestartNo, nil).AnyTimes()
 
@@ -188,11 +250,11 @@ func TestReconcile(t *testing.T) {
 			suggestion := &suggestionsv1beta1.Suggestion{}
 			// We should Get suggestion because resource version can be modified
 			for err != nil {
-				if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
+				if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
 					continue
 				}
 				suggestion.Status.Suggestions = suggestion.Status.Suggestions[1:]
-				err = c.Status().Update(context.TODO(), suggestion)
+				err = c.Status().Update(ctx, suggestion)
 			}
 		})
 
@@ -202,11 +264,11 @@ func TestReconcile(t *testing.T) {
 			var err error = errors.NewBadRequest("fake-error")
 			suggestion := &suggestionsv1beta1.Suggestion{}
 			for err != nil {
-				if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
+				if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
 					continue
 				}
 				suggestion.MarkSuggestionStatusSucceeded(reasonRestart, msgRestartNo)
-				err = c.Status().Update(context.TODO(), suggestion)
+				err = c.Status().Update(ctx, suggestion)
 			}
 		})
 
@@ -216,11 +278,11 @@ func TestReconcile(t *testing.T) {
 			var err error = errors.NewBadRequest("fake-error")
 			suggestion := &suggestionsv1beta1.Suggestion{}
 			for err != nil {
-				if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
+				if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
 					continue
 				}
 				suggestion.MarkSuggestionStatusSucceeded(reasonRestart, msgRestartYes)
-				err = c.Status().Update(context.TODO(), suggestion)
+				err = c.Status().Update(ctx, suggestion)
 			}
 		})
 
@@ -230,11 +292,11 @@ func TestReconcile(t *testing.T) {
 			suggestion := &suggestionsv1beta1.Suggestion{}
 			var err error = errors.NewBadRequest("fake-error")
 			for err != nil {
-				if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
+				if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
 					continue
 				}
 				suggestion.MarkSuggestionStatusRunning(corev1.ConditionFalse, suggestionsv1beta1.SuggestionRestartReason, msgRestarting)
-				err = c.Status().Update(context.TODO(), suggestion)
+				err = c.Status().Update(ctx, suggestion)
 			}
 		})
 
@@ -246,29 +308,30 @@ func TestReconcile(t *testing.T) {
 	)
 
 	// Test 1 - Regural experiment run
-	instance := newFakeInstance()
 
 	// Create the suggestion with NeverResume
-	g.Expect(c.Create(context.TODO(), suggestionRestartNo)).NotTo(gomega.HaveOccurred())
+	suggestionInstance := newFakeSuggestion()
+	g.Expect(c.Create(ctx, suggestionInstance)).NotTo(gomega.HaveOccurred())
 	// Manually update suggestion's status with 3 suggestions
 	// Ones redundant trial is deleted, suggestion status must be updated
 	g.Eventually(func() error {
 		suggestion := &suggestionsv1beta1.Suggestion{}
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
 			return err
 		}
 		suggestion.Status.Suggestions = newFakeSuggestion().Status.Suggestions
-		errStatus := c.Status().Update(context.TODO(), suggestion)
+		errStatus := c.Status().Update(ctx, suggestion)
 		return errStatus
 	}, timeout).ShouldNot(gomega.HaveOccurred())
 
 	// Create the experiment
-	g.Expect(c.Create(context.TODO(), instance)).NotTo(gomega.HaveOccurred())
+	instance := newFakeInstance()
+	g.Expect(c.Create(ctx, instance)).NotTo(gomega.HaveOccurred())
 
 	// Expect that experiment status is running
 	experiment := &experimentsv1beta1.Experiment{}
 	g.Eventually(func() bool {
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
 			return false
 		}
 		return experiment.IsRunning()
@@ -280,7 +343,7 @@ func TestReconcile(t *testing.T) {
 		label := labels.Set{
 			consts.LabelExperimentName: experimentName,
 		}
-		g.Expect(c.List(context.TODO(), trials, &client.ListOptions{LabelSelector: label.AsSelector()})).NotTo(gomega.HaveOccurred())
+		g.Expect(c.List(ctx, trials, &client.ListOptions{LabelSelector: label.AsSelector()})).NotTo(gomega.HaveOccurred())
 		return len(trials.Items)
 	}, timeout).Should(gomega.Equal(2))
 
@@ -290,7 +353,7 @@ func TestReconcile(t *testing.T) {
 	g.Eventually(func() bool {
 		suggestion := &suggestionsv1beta1.Suggestion{}
 		isDeleted := true
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
 			return false
 		}
 		for _, s := range suggestion.Status.Suggestions {
@@ -307,36 +370,38 @@ func TestReconcile(t *testing.T) {
 	g.Eventually(func() bool {
 		// Update experiment
 		experiment = &experimentsv1beta1.Experiment{}
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
 			return false
 		}
 		experiment.MarkExperimentStatusFailed(experimentUtil.ExperimentMaxTrialsReachedReason, "Experiment is failed")
-		if err = c.Status().Update(context.TODO(), experiment); err != nil {
+		if err = c.Status().Update(ctx, experiment); err != nil {
 			return false
 		}
 
 		// Get Suggestion
 		suggestion := &suggestionsv1beta1.Suggestion{}
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, suggestion); err != nil {
 			return false
 		}
 		return suggestion.IsSucceeded()
 	}, timeout).Should(gomega.BeTrue())
 
 	// Delete the suggestion
-	g.Expect(c.Delete(context.TODO(), suggestionRestartNo)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Delete(ctx, suggestionInstance)).NotTo(gomega.HaveOccurred())
 
 	// Expect that suggestion with ResumePolicy = NeverResume is deleted
 	g.Eventually(func() bool {
-		return errors.IsNotFound(c.Get(context.TODO(),
+		return errors.IsNotFound(c.Get(ctx,
 			types.NamespacedName{Namespace: namespace, Name: experimentName}, &suggestionsv1beta1.Suggestion{}))
 	}, timeout).Should(gomega.BeTrue())
 
 	// Create the suggestion with ResumePolicy = FromVolume
-	g.Expect(c.Create(context.TODO(), suggestionRestartYes)).NotTo(gomega.HaveOccurred())
+	suggestionInstance = newFakeSuggestion()
+	suggestionInstance.Spec.ResumePolicy = experimentsv1beta1.FromVolume
+	g.Expect(c.Create(ctx, suggestionInstance)).NotTo(gomega.HaveOccurred())
 	// Expect that suggestion is created
 	g.Eventually(func() bool {
-		return errors.IsNotFound(c.Get(context.TODO(),
+		return errors.IsNotFound(c.Get(ctx,
 			types.NamespacedName{Namespace: namespace, Name: experimentName}, &suggestionsv1beta1.Suggestion{}))
 	}, timeout).ShouldNot(gomega.BeTrue())
 
@@ -345,13 +410,13 @@ func TestReconcile(t *testing.T) {
 	g.Eventually(func() bool {
 		experiment := &experimentsv1beta1.Experiment{}
 		// Update ResumePolicy and maxTrialCount for resume
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
 			return false
 		}
 		experiment.Spec.ResumePolicy = experimentsv1beta1.FromVolume
 		var max int32 = 5
 		experiment.Spec.MaxTrialCount = &max
-		errUpdate := c.Update(context.TODO(), experiment)
+		errUpdate := c.Update(ctx, experiment)
 		return errUpdate == nil
 	}, timeout).Should(gomega.BeTrue())
 
@@ -359,11 +424,11 @@ func TestReconcile(t *testing.T) {
 	g.Eventually(func() bool {
 		experiment := &experimentsv1beta1.Experiment{}
 		// Update status to succeeded
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
 			return false
 		}
 		experiment.MarkExperimentStatusSucceeded(experimentUtil.ExperimentMaxTrialsReachedReason, "Experiment is succeeded")
-		errStatus := c.Status().Update(context.TODO(), experiment)
+		errStatus := c.Status().Update(ctx, experiment)
 		return errStatus == nil
 	}, timeout).Should(gomega.BeTrue())
 
@@ -372,27 +437,27 @@ func TestReconcile(t *testing.T) {
 	// UpdateSuggestionStatus with restartYesCall call and UpdateSuggestionStatus with experimentRestartingCall call.
 	g.Eventually(func() bool {
 		experiment := &experimentsv1beta1.Experiment{}
-		if err = c.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
+		if err = c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: experimentName}, experiment); err != nil {
 			return false
 		}
 		return experiment.IsRestarting() && !experiment.IsSucceeded() && !experiment.IsFailed()
 	}, timeout).Should(gomega.BeTrue())
 
 	// Delete the suggestion
-	g.Expect(c.Delete(context.TODO(), suggestionRestartYes)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Delete(ctx, suggestionInstance)).NotTo(gomega.HaveOccurred())
 
 	// Expect that suggestion with ResumePolicy = FromVolume is deleted
 	g.Eventually(func() bool {
-		return errors.IsNotFound(c.Get(context.TODO(),
+		return errors.IsNotFound(c.Get(ctx,
 			types.NamespacedName{Namespace: namespace, Name: experimentName}, &suggestionsv1beta1.Suggestion{}))
 	}, timeout).Should(gomega.BeTrue())
 
 	// Delete the experiment
-	g.Expect(c.Delete(context.TODO(), instance)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Delete(ctx, instance)).NotTo(gomega.HaveOccurred())
 
 	// Expect that experiment is deleted
 	g.Eventually(func() bool {
-		return errors.IsNotFound(c.Get(context.TODO(),
+		return errors.IsNotFound(c.Get(ctx,
 			types.NamespacedName{Namespace: namespace, Name: experimentName}, &experimentsv1beta1.Experiment{}))
 	}, timeout).Should(gomega.BeTrue())
 
@@ -418,12 +483,14 @@ func newFakeInstance() *experimentsv1beta1.Experiment {
 					Containers: []corev1.Container{
 						{
 							Name:  primaryContainer,
-							Image: "docker.io/kubeflowkatib/mxnet-mnist",
+							Image: "ghcr.io/kubeflow/katib/pytorch-mnist-cpu",
 							Command: []string{
 								"python3",
-								"/opt/mxnet-mnist/mnist.py",
+								"/opt/pytorch-mnist/mnist.py",
+								"--epochs=1",
+								"--batch-size=16",
 								"--lr=${trialParameters.learningRate}",
-								"--num-layers=${trialParameters.numberLayers}",
+								"--momentum=${trialParameters.momentum}",
 							},
 						},
 					},
@@ -552,12 +619,14 @@ func newFakeBatchJob() *batchv1.Job {
 					Containers: []corev1.Container{
 						{
 							Name:  primaryContainer,
-							Image: "docker.io/kubeflowkatib/mxnet-mnist",
+							Image: "ghcr.io/kubeflow/katib/pytorch-mnist-cpu",
 							Command: []string{
 								"python3",
-								"/opt/mxnet-mnist/mnist.py",
-								"--lr=0.01",
-								"--num-layers=5",
+								"/opt/pytorch-mnist/mnist.py",
+								"--epochs=1",
+								"--batch-size=16",
+								"--lr=${trialParameters.learningRate}",
+								"--momentum=${trialParameters.momentum}",
 							},
 						},
 					},

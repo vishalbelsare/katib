@@ -71,3 +71,13 @@ from kubeflow.katib.models.v1beta1_trial_template import V1beta1TrialTemplate
 
 # Import Katib API client.
 from kubeflow.katib.api.katib_client import KatibClient
+# Import Katib TrainerResources class.
+from kubeflow.katib.types.types import TrainerResources
+# Import Katib report metrics functions
+from kubeflow.katib.api.report_metrics import report_metrics
+# Import Katib helper functions.
+import kubeflow.katib.api.search as search
+# Import Katib helper constants.
+from kubeflow.katib.constants.constants import BASE_IMAGE_TENSORFLOW
+from kubeflow.katib.constants.constants import BASE_IMAGE_TENSORFLOW_GPU
+from kubeflow.katib.constants.constants import BASE_IMAGE_PYTORCH

@@ -5,7 +5,7 @@ Here you can find the location for images that are used in Katib.
 ## Katib Components Images
 
 The following table shows images for the
-[Katib components](https://www.kubeflow.org/docs/components/katib/hyperparameter/#katib-components).
+[Katib components](https://www.kubeflow.org/docs/components/katib/reference/architecture/#katib-control-plane-components).
 
 <table>
   <tbody>
@@ -22,7 +22,7 @@ The following table shows images for the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/katib-controller</code>
+        <code>ghcr.io/kubeflow/katib/katib-controller</code>
       </td>
       <td>
         Katib Controller
@@ -33,7 +33,7 @@ The following table shows images for the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/katib-ui</code>
+        <code>ghcr.io/kubeflow/katib/katib-ui</code>
       </td>
       <td>
         Katib User Interface
@@ -44,7 +44,7 @@ The following table shows images for the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/katib-db-manager</code>
+        <code>ghcr.io/kubeflow/katib/katib-db-manager</code>
       </td>
       <td>
         Katib DB Manager
@@ -64,24 +64,13 @@ The following table shows images for the
         <a href="https://github.com/docker-library/mysql/blob/c506174eab8ae160f56483e8d72410f8f1e1470f/8.0/Dockerfile.debian">Dockerfile</a>
       </td>
     </tr>
-    <tr align="center">
-      <td>
-        <code>docker.io/kubeflowkatib/katib-cert-generator</code>
-      </td>
-      <td>
-        Katib Cert Generator
-      </td>
-      <td>
-        <a href="https://github.com/kubeflow/katib/blob/master/cmd/cert-generator/v1beta1/Dockerfile">Dockerfile</a>
-      </td>
-    </tr>
   </tbody>
 </table>
 
 ## Katib Metrics Collectors Images
 
 The following table shows images for the
-[Katib Metrics Collectors](https://www.kubeflow.org/docs/components/katib/experiment/#metrics-collector).
+[Katib Metrics Collectors](https://www.kubeflow.org/docs/components/katib/user-guides/metrics-collector/).
 
 <table>
   <tbody>
@@ -98,7 +87,7 @@ The following table shows images for the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/file-metrics-collector</code>
+        <code>ghcr.io/kubeflow/katib/file-metrics-collector</code>
       </td>
       <td>
         File Metrics Collector
@@ -109,7 +98,7 @@ The following table shows images for the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/tfevent-metrics-collector</code>
+        <code>ghcr.io/kubeflow/katib/tfevent-metrics-collector</code>
       </td>
       <td>
         Tensorflow Event Metrics Collector
@@ -124,8 +113,8 @@ The following table shows images for the
 ## Katib Suggestions and Early Stopping Images
 
 The following table shows images for the
-[Katib Suggestions](https://www.kubeflow.org/docs/components/katib/experiment/#search-algorithms-in-detail)
-and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/components/katib/early-stopping/).
+[Katib Suggestion services](https://www.kubeflow.org/docs/components/katib/reference/architecture/#suggestion)
+and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/components/katib/user-guides/early-stopping/#early-stopping-algorithms).
 
 <table>
   <tbody>
@@ -142,7 +131,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/suggestion-hyperopt</code>
+        <code>ghcr.io/kubeflow/katib/suggestion-hyperopt</code>
       </td>
       <td>
         <a href="https://github.com/hyperopt/hyperopt">Hyperopt</a> Suggestion
@@ -153,18 +142,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/suggestion-chocolate</code>
-      </td>
-      <td>
-        <a href="https://github.com/AIworx-Labs/chocolate">Chocolate</a> Suggestion
-      </td>
-      <td>
-        <a href="https://github.com/kubeflow/katib/blob/master/cmd/suggestion/chocolate/v1beta1/Dockerfile">Dockerfile</a>
-      </td>
-    </tr>
-    <tr align="center">
-      <td>
-        <code>docker.io/kubeflowkatib/suggestion-skopt</code>
+        <code>ghcr.io/kubeflow/katib/suggestion-skopt</code>
       </td>
       <td>
         <a href="https://github.com/scikit-optimize/scikit-optimize">Skopt</a> Suggestion
@@ -175,7 +153,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/suggestion-optuna</code>
+        <code>ghcr.io/kubeflow/katib/suggestion-optuna</code>
       </td>
       <td>
         <a href="https://github.com/optuna/optuna">Optuna</a> Suggestion
@@ -186,7 +164,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/suggestion-goptuna</code>
+        <code>ghcr.io/kubeflow/katib/suggestion-goptuna</code>
       </td>
       <td>
         <a href="https://github.com/c-bata/goptuna">Goptuna</a> Suggestion
@@ -197,7 +175,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/suggestion-hyperband</code>
+        <code>ghcr.io/kubeflow/katib/suggestion-hyperband</code>
       </td>
       <td>
         <a href="https://www.kubeflow.org/docs/components/katib/experiment/#hyperband">Hyperband</a> Suggestion
@@ -208,7 +186,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/suggestion-enas</code>
+        <code>ghcr.io/kubeflow/katib/suggestion-enas</code>
       </td>
       <td>
         <a href="https://www.kubeflow.org/docs/components/katib/experiment/#enas">ENAS</a> Suggestion
@@ -219,7 +197,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/suggestion-darts</code>
+        <code>ghcr.io/kubeflow/katib/suggestion-darts</code>
       </td>
       <td>
         <a href="https://www.kubeflow.org/docs/components/katib/experiment/#differentiable-architecture-search-darts">DARTS</a> Suggestion
@@ -230,7 +208,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/earlystopping-medianstop</code>
+        <code>ghcr.io/kubeflow/katib/earlystopping-medianstop</code>
       </td>
       <td>
         <a href="https://www.kubeflow.org/docs/components/katib/early-stopping/#median-stopping-rule">Median Stopping Rule</a>
@@ -245,7 +223,7 @@ and the [Katib Early Stopping algorithms](https://www.kubeflow.org/docs/componen
 ## Training Containers Images
 
 The following table shows images for training containers which are used in the
-[Katib Trials](https://www.kubeflow.org/docs/components/katib/experiment/#packaging-your-training-code-in-a-container-image).
+[Katib Trials](https://www.kubeflow.org/docs/components/katib/reference/architecture/#trial).
 
 <table>
   <tbody>
@@ -262,51 +240,40 @@ The following table shows images for training containers which are used in the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/mxnet-mnist</code>
+        <code>ghcr.io/kubeflow/katib/pytorch-mnist-cpu</code>
       </td>
       <td>
-        MXNet MNIST example with collecting metrics time
+        PyTorch MNIST example with printing metrics to the file or StdOut with CPU support
       </td>
       <td>
-        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/mxnet-mnist/Dockerfile">Dockerfile</a>
-      </td>
-    </tr>
-    <tr align="center">
-      <td>
-        <code>docker.io/kubeflowkatib/pytorch-mnist</code>
-      </td>
-      <td>
-        PyTorch MNIST example with printing metrics to the file or StdOut
-      </td>
-      <td>
-        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/pytorch-mnist/Dockerfile">Dockerfile</a>
+        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/pytorch-mnist/Dockerfile.cpu">Dockerfile</a>
       </td>
     </tr>
     <tr align="center">
       <td>
-        <code>gcr.io/kubeflow-ci/tf-mnist-with-summaries</code>
+        <code>ghcr.io/kubeflow/katib/pytorch-mnist-gpu</code>
+      </td>
+      <td>
+        PyTorch MNIST example with printing metrics to the file or StdOut with GPU support
+      </td>
+      <td>
+        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/pytorch-mnist/Dockerfile.gpu">Dockerfile</a>
+      </td>
+    </tr>
+    <tr align="center">
+      <td>
+        <code>ghcr.io/kubeflow/katib/tf-mnist-with-summaries</code>
       </td>
       <td>
         Tensorflow MNIST example with saving metrics in the summaries
       </td>
       <td>
-        <a href="https://github.com/kubeflow/training-operator/blob/2712f5667ec78f17d22288630f8719f0c08990ba/examples/tensorflow/mnist_with_summaries/Dockerfile">Dockerfile</a>
+        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/tf-mnist-with-summaries/Dockerfile">Dockerfile</a>
       </td>
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/bytepsimage/mxnet</code>
-      </td>
-      <td>
-        Distributed BytePS example for MXJob
-      </td>
-      <td>
-        <a href="https://github.com/bytedance/byteps/blob/v0.2.5/docker/Dockerfile">Dockerfile</a>
-      </td>
-    </tr>
-    <tr align="center">
-      <td>
-        <code>docker.io/kubeflowkatib/xgboost-lightgbm</code>
+        <code>ghcr.io/kubeflow/katib/xgboost-lightgbm</code>
       </td>
       <td>
         Distributed LightGBM example for XGBoostJob
@@ -339,7 +306,7 @@ The following table shows images for training containers which are used in the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/enas-cnn-cifar10-gpu</code>
+        <code>ghcr.io/kubeflow/katib/enas-cnn-cifar10-gpu</code>
       </td>
       <td>
         Keras CIFAR-10 CNN example for ENAS with GPU support
@@ -350,7 +317,7 @@ The following table shows images for training containers which are used in the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/enas-cnn-cifar10-cpu</code>
+        <code>ghcr.io/kubeflow/katib/enas-cnn-cifar10-cpu</code>
       </td>
       <td>
         Keras CIFAR-10 CNN example for ENAS with CPU support
@@ -361,13 +328,24 @@ The following table shows images for training containers which are used in the
     </tr>
     <tr align="center">
       <td>
-        <code>docker.io/kubeflowkatib/darts-cnn-cifar10</code>
+        <code>ghcr.io/kubeflow/katib/darts-cnn-cifar10-gpu</code>
       </td>
       <td>
-        PyTorch CIFAR-10 CNN example for DARTS
+        PyTorch CIFAR-10 CNN example for DARTS with GPU support
       </td>
       <td>
-        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/darts-cnn-cifar10/Dockerfile">Dockerfile</a>
+        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/darts-cnn-cifar10/Dockerfile.gpu">Dockerfile</a>
+      </td>
+    </tr>
+    <tr align="center">
+      <td>
+        <code>ghcr.io/kubeflow/katib/darts-cnn-cifar10-cpu</code>
+      </td>
+      <td>
+        PyTorch CIFAR-10 CNN example for DARTS with CPU support
+      </td>
+      <td>
+        <a href="https://github.com/kubeflow/katib/blob/master/examples/v1beta1/trial-images/darts-cnn-cifar10/Dockerfile.cpu">Dockerfile</a>
       </td>
     </tr>
 </table>
